@@ -128,6 +128,8 @@ typedef struct
   uint32_t time;
   //Active power L1 value.
   uint16_t activePowerL1;
+  //reactive power L1 value
+  uint16_t reactivePowerL1;
 } gxLoadProfileData;
 
 //Define profile generic buffer row data for event log.
@@ -166,6 +168,7 @@ static gxAssociationLogicalName associationLow;
 static gxAssociationLogicalName associationHigh;
 static gxAssociationLogicalName associationHighGMac;
 static gxRegister activePowerL1;
+static gxRegister reactivePowerL1;
 static gxScriptTable scriptTableGlobalMeterReset;
 static gxScriptTable scriptTableDisconnectControl;
 static gxScriptTable scriptTableActivatetestMode;
@@ -192,7 +195,7 @@ static gxObject* ALL_OBJECTS[] = { BASE(associationNone), BASE(associationLow), 
                                    BASE(scriptTableActivatetestMode), BASE(scriptTableActivateNormalMode), BASE(profileGeneric), BASE(eventLog), BASE(hdlc),
                                    BASE(disconnectControl), BASE(actionScheduleDisconnectOpen), BASE(actionScheduleDisconnectClose),
                                    BASE(unixTime), BASE(invocationCounter),
-                                   BASE(blockCipherKey), BASE(authenticationKey), BASE(kek), BASE(serverInvocationCounter)
+                                   BASE(blockCipherKey), BASE(authenticationKey), BASE(kek), BASE(serverInvocationCounter), BASE(reactivePowerL1)
                                  };
 
 //List of COSEM objects that are removed from association view(s).
@@ -224,6 +227,8 @@ static uint32_t started = 0;
 static uint32_t executeTime = 0;
 
 static uint16_t activePowerL1Value = 0;
+
+static uint16_t reactivePowerL1Value = 0;
 
 typedef enum
 {
@@ -806,11 +811,32 @@ int addRegisterObject()
   return ret;
 }
 
+//reActive power object register
+int addRegisterObject1()
+{
+  int ret;
+  const unsigned char ln[6] = { 1, 1, 23, 25, 0, 255 };
+  if ((ret = INIT_OBJECT(reactivePowerL1, DLMS_OBJECT_TYPE_REGISTER, ln)) == 0)
+  {
+    reactivePowerL1Value = 10;
+    GX_UINT16_BYREF(reactivePowerL1.value, reactivePowerL1Value);
+    //10 ^ 3 =  1000
+    reactivePowerL1.scaler = 3;
+    reactivePowerL1.unit = 30;
+  }
+  return ret;
+}
+
+
 uint16_t readActivePowerValue()
 {
   return ++activePowerL1Value;
 }
 
+uint16_t readreActivePowerValue()
+{
+  return ++reactivePowerL1Value;
+}
 uint16_t readEventCode()
 {
   return eventCode.value.uiVal;
@@ -1102,6 +1128,7 @@ void createObjects()
       (ret = addInvocationCounter()) != 0 ||
       (ret = addClockObject()) != 0 ||
       (ret = addRegisterObject()) != 0 ||
+      (ret = addRegisterObject1()) != 0 ||
       (ret = addAssociationNone()) != 0 ||
       (ret = addAssociationLow()) != 0 ||
       (ret = addAssociationHigh()) != 0 ||
@@ -1635,6 +1662,11 @@ void svr_preRead(
     if (e->target == &activePowerL1.base && e->index == 2)
     {
       readActivePowerValue();
+    }
+    //Update value by one every time when user reads register.
+    if (e->target == &reactivePowerL1.base && e->index == 2)
+    {
+      readreActivePowerValue();
     }
     //Get time if user want to read date and time.
     if (e->target == BASE(clock1) && e->index == 2)
